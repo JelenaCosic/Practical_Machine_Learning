@@ -1,0 +1,90 @@
+---
+title: "Practical Machine Learning - project"
+author: "Jelena Cosic"
+date: "Sunday, August 23, 2015"
+output: html_document
+---
+
+The goal of this project is to build the model based on the data of various sensor values, which could later be used to predict the classe variable, that is, the manner in which participants did the exercise.
+
+First we need to load appropriate libraries and our data.
+
+
+```{r}
+library(corrplot)
+library(caret)
+
+train <- read.csv("C:/data/pml-training.csv", header = TRUE, na.strings = c("NA", ""))
+test <- read.csv("C:/data/pml-testing.csv", header = TRUE, na.strings = c("NA", ""))
+```
+We can notice that there are a lot of missing values so before we continue with building the model we will delete the columns with with a lot of missing values.
+
+
+```{r}
+# We will remove columns with NA values
+
+NAs <- apply(train, 2, function(x) { sum(is.na(x)) })
+train_new <- train[, which(NAs == 0)]
+```
+After deleting the columns with the missing values I proceeded with creating a subset of the original set train since I will be using Random Forests Algorithm from the caret package
+
+
+```{r}
+# Creating a subset of train_new data set
+train_sub <- createDataPartition(y = train_new$classe, p=0.2,list=FALSE)
+trainData <- train_new[train_sub,]
+```
+
+I removed also the columns with non sensor values like the X column, user_name, and new_window.
+
+
+```{r}
+# We will be removing predictors that are not of use for us
+remove <- grep("timestamp|X|user_name|new_window", names(trainData))
+trainData <- trainData[, -remove]
+```
+Then, I've decided to use cross validation. After setting the trainControl, I have used the Random Forests (rf) algorithm.
+
+```{r}
+#I will be using cross validation so I will configure the train control for cross-validation
+tc = trainControl(method = "cv", number = 4)
+
+# Fit the model using Random Forests algorithm
+modFit <- train(trainData$classe ~.,
+                data = trainData,
+                method="rf",
+                trControl = tc,
+                prox = TRUE,
+                allowParallel = TRUE)
+
+```
+
+```{r}
+print(modFit)
+```
+
+```{r}
+print(modFit$finalModel)
+```
+After having fit the model with training data, I have used it for predictions on test data. I've applied the same removal of columns to the test data as I have done for the training data set:
+
+```{r}
+# Only take the columns of testingAll that are also in trainData
+test_new <- test[ , which(names(test) %in% names(trainData))]
+
+# Run the prediction
+pred <- predict(modFit, newdata = test_new)
+
+# Utility function provided by the instructor
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(pred)
+
+```
+The model performed predictions very accurately, it correctly predicted 20 cases out of 20.
